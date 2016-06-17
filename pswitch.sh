@@ -35,12 +35,22 @@ pset () {
 pswitch () {
     case $1 in
         s|switch)
-            cd $projectdir"$(pget current)"
+            pswitch
             vagrant halt
             pset current "$2"
-            cd $projectdir"$(pget current)"
+            pswitch
             vagrant up
             ;;
+
+        vm)
+            pswitch
+            vagrant ssh
+            ;;
+
+        dir)
+            cd $projectdir'pswitch'
+            ;;
+
         *)
             cd $projectdir"$(pget current)"
             ;;
