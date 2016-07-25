@@ -14,10 +14,12 @@ __pswitch_get () {
 # $2 The value to set it to
 #
 __pswitch_set () {
-    <$psconf grep "$1" > /dev/null
-    result=$?
-    [ $result -eq 1 ] && echo "$1=$2" >> $psconf
-    [ $result -eq 0 ] && <$psconf sed "s/^\\($1=\\).*$/\\1$2/" > $psconf.tmp && mv $psconf.tmp $psconf
+    if grep "$1" $psconf > /dev/null
+    then
+        <$psconf sed "s/^\\($1=\\).*$/\\1$2/" > $psconf.temp && mv $psconf.temp $psconf
+    else
+        echo "$1=$2" >> $psconf
+    fi
 }
 
 ##
@@ -26,13 +28,41 @@ __pswitch_set () {
 # $1 The key to remove
 #
 __pswitch_rem () {
-    <$psconf grep -v "^$1=" > $psconf.temp
+    grep -v "^$1=" $psconf > $psconf.temp
     mv $psconf.temp $psconf
 }
 
+##
+# Check whether a string is a valid project in the 
+# projects dir.
+#
+# $1 The string to check
+#
 __pswitch_validdir () {
     ls -l $projectdir | grep ^d | awk '{print $9}' | grep "$1" > /dev/null 2>&1
     return $?
+}
+
+##
+# Cd to $projectdir/$1
+#
+# $1 The dir to cd to
+#
+__pswitch_cd () {
+    if __pswitch_validdir $1 ; then
+        cd $projectdir/$1
+    else
+        return 1
+    fi
+}
+
+##
+# Cd to $projectdir/$1
+#
+# $1 The dir to cd to
+#
+__pswitch_cd_key () {
+    __pswitch_cd "$(__pswitch_get $1)"
 }
 
 ##
@@ -64,6 +94,11 @@ pswitch () {
         e|extra)
             if [ ! -z $2 ] ; then
                 case $2 in
+                    -m|--vm)
+                        pswitch extra
+                        vagrant ssh
+                        ;;
+
                     -r|--remove)
                         if [ ! -z "$(__pswitch_get extra)" ] ; then
                             pswitch extra
@@ -84,7 +119,7 @@ pswitch () {
                         ;;
                 esac
             else
-                cd $projectdir"$(__pswitch_get extra)"
+                __pswitch_cd_key extra
             fi
             ;;
 
@@ -94,11 +129,15 @@ pswitch () {
             ;;
 
         dir)
-            cd $projectdir'pswitch'
+            __pswitch_cd pswitch
+            ;;
+
+        cd)
+            __pswitch_cd $2
             ;;
 
         *)
-            cd $projectdir"$(__pswitch_get current)"
+            __pswitch_cd_key current
             ;;
     esac
 }
@@ -108,7 +147,7 @@ pswitch () {
 #
 _pswitch_complete () {
     case $3 in
-        s)
+        s|switch|e|extra|cd)
             COMPREPLY=$(ls -l $projectdir | grep ^d | awk '{print $9}' | grep "$2" | head -1)
             ;;
         *)
@@ -130,7 +169,7 @@ psconf=$confdir/pswitch
 # Ensure the configuration directory and file
 # are present and set a default for projectdir
 [ ! -d $confdir ] && mkdir $confdir
-[ ! -f $psconf ] && touch $psconf && __pswitch_set projectdir ~/Documents/
+[ ! -f $psconf ] && touch $psconf && __pswitch_set projectdir ~/Documents
 
 ##
 # The directory where projects are kept
